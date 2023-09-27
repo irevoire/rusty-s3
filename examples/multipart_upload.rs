@@ -56,12 +56,44 @@ async fn main() -> Result<(), Box<dyn StdError>> {
 
     println!("etag: {}", etag.to_str().unwrap());
 
+    println!(
+        "multipart upload created - upload id: {}",
+        multipart.upload_id()
+    );
+
+    let part_upload = UploadPart::new(
+        &bucket,
+        Some(&credential),
+        "idk.txt",
+        2,
+        multipart.upload_id(),
+    );
+    let url = part_upload.sign(ONE_HOUR);
+
+    let body = "101112131415";
+    let resp = client
+        .put(url)
+        .body(body)
+        .send()
+        .await?
+        .error_for_status()?;
+    let etag2 = resp
+        .headers()
+        .get(ETAG)
+        .expect("every UploadPart request returns an Etag");
+
+    println!("etag: {}", etag2.to_str().unwrap());
+
     let action = CompleteMultipartUpload::new(
         &bucket,
         Some(&credential),
         "idk.txt",
         multipart.upload_id(),
-        iter::once(etag.to_str().unwrap()),
+        vec![
+            etag.to_str().unwrap(),  // .trim_matches('"'),
+            etag2.to_str().unwrap(), // .trim_matches('"'),
+        ]
+        .into_iter(),
     );
     let url = action.sign(ONE_HOUR);
 
